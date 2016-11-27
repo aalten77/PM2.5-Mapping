@@ -1,4 +1,5 @@
 import csv
+import json
 from flask import Flask, render_template, redirect, url_for, request
 from Site import Site
 from collections import defaultdict
@@ -9,6 +10,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.sqlite3'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['LOAD_FROM_CSV'] = False
+app.config['DATE_FORMAT'] = '%m/%d/%Y'
 
 db = SQLAlchemy(app)
 
@@ -47,7 +49,7 @@ def load_db_from_csv(file_name: str):
             site_num = int(row['Site Num'])
             lat = float(row['Latitude'])
             lng = float(row['Longitude'])
-            date = datetime.strptime(row['Date Local'], '%m/%d/%Y')
+            date = datetime.strptime(row['Date Local'], app.config['DATE_FORMAT'])
             aqi = int(row['AQI'] if row['AQI'] != '' else -1)
 
             obj = Site(site_num, lat, lng, date, aqi)
@@ -61,15 +63,33 @@ def load_db_from_csv(file_name: str):
         if counter > 0:
             db.session.commit()
 
+
 @app.route('/', methods = ['POST', 'GET'])
 def display2016():
-   startdate = request.form['startdate']
-   enddate = request.form['enddate']
-   print(startdate)
-   print(enddate)
-   for site in Sites:
-       site.makeJSON(startdate, enddate)
-   return render_template('map.html', Sites = Sites[0::10], startdate = startdate, enddate = enddate)
+    startdate = datetime.strptime(request.form['startdate'], app.config['DATE_FORMAT'])
+    enddate = datetime.strptime(request.form['enddate'], app.config['DATE_FORMAT'])
+
+    results = Site.query.filter(Site.date >= startdate, Site.date <= enddate).all()
+    print(len(results))
+
+    Sites=[]
+    return render_template('map.html', Sites = Sites[0::10], startdate = startdate, enddate = enddate)
+
+
+@app.route('/data', methods=['POST'])
+def query_data():
+    date = datetime.strptime(request.form['date'], app.config['DATE_FORMAT'])
+    results = Site.query.filter(Site.date == date).all()
+
+    def transform(element: Site):
+        return {
+            'lat': element.lat,
+            'lng': element.lng,
+            'aqi': element.aqi
+        }
+
+    return json.dumps(list(map(transform, results)))
+
 
 @app.route('/form')
 def selectDays():
