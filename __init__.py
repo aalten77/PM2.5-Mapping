@@ -3,14 +3,17 @@ from flask import Flask, render_template, redirect, url_for, request
 from Site import Site
 from collections import defaultdict
 from flask_sqlalchemy import SQLAlchemy
-import datetime
+from datetime import datetime
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.sqlite3'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['LOAD_FROM_CSV'] = False
 
 db = SQLAlchemy(app)
-class site(db.Model):
+
+
+class Site(db.Model):
     __tablename__ = "sites"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -28,43 +31,35 @@ class site(db.Model):
         self.aqi = aqi
 
 
+def load_db_from_csv(file_name: str):
+    # Delete All Entries in Sites
+    results = Site.query.all()
+    for res in results:
+        db.session.delete(res)
+    db.session.commit()
 
-with open('daily_88101_2015.csv') as csvfile:
-    reader = csv.DictReader(csvfile)
+    with open('daily_88101_2015.csv') as csvfile:
+        reader = csv.DictReader(csvfile)
 
-    Sites = []
-    i = 0
-    x = -1
-    a = ''
+        counter = 0
 
-    for row in reader:
-        #if(i == 10):
-        #    break;
-        if (x != int(row['Site Num'])):
-            Dictionary = defaultdict(dict)
-            Site_Num = int(row['Site Num'])
-            x = Site_Num
-            Latitude = float(row['Latitude'])
-            Longitude = float(row['Longitude'])
-            s = Site(Site_Num, Latitude, Longitude)
-            Sites.append(s)
-            i = i + 1
+        for row in reader:
+            site_num = int(row['Site Num'])
+            lat = float(row['Latitude'])
+            lng = float(row['Longitude'])
+            date = datetime.strptime(row['Date Local'], '%m/%d/%Y')
+            aqi = int(row['AQI'] if row['AQI'] != '' else -1)
 
-        if (a != row['Date Local']):
-            Day = row['Date Local']
-            a = row['Date Local']
-        if (row['AQI'] == ''):  # some of the values are negative which probably aren't real PM2.5 values. make 0
-            Dictionary[Day] = -1;
-        else:
-            Dictionary[Day] = int(row['AQI'])
-        Sites[i - 1].makeDict(Dictionary)
-        #Sites[i - 1].makeJSON(Dictionary)
+            obj = Site(site_num, lat, lng, date, aqi)
+            db.session.add(obj)
 
-        #if (float(row['Sample Measurement']) < 0):  # some of the values are negative which probably aren't real PM2.5 values. make 0
-        #    Sites[i - 1].add_GMTs_PM25s(row['Date GMT'], row['Time GMT'], 0.0)
-        #   continue
-        #Sites[i - 1].add_GMTs_PM25s(row['Date GMT'], row['Time GMT'], float(row['Sample Measurement']))
-meow = 0
+            counter += 1
+            if (counter > 10000):
+                db.session.commit()
+                counter = 0
+
+        if counter > 0:
+            db.session.commit()
 
 @app.route('/', methods = ['POST', 'GET'])
 def display2016():
@@ -85,4 +80,7 @@ def displaymap():
     return render_template('map2.html')
 
 if __name__ == '__main__':
-   app.run(debug = True)
+    db.create_all()
+    if (app.config['LOAD_FROM_CSV']):
+        load_db_from_csv('daily_88101_2015.csv')
+    app.run(debug = True)
