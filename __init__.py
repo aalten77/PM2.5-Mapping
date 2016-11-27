@@ -2,9 +2,32 @@ import csv
 from flask import Flask, render_template, redirect, url_for, request
 from Site import Site
 from collections import defaultdict
+from flask_sqlalchemy import SQLAlchemy
 import datetime
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.sqlite3'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+class site(db.Model):
+    __tablename__ = "sites"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    site_num = db.Column(db.Integer)
+    lat = db.Column(db.Float)
+    lng = db.Column(db.Float)
+    date = db.Column(db.DateTime)
+    aqi = db.Column(db.Integer)
+
+    def __init__(self, site_num, lat, lng, date, aqi):
+        self.site_num = site_num
+        self.lat = lat
+        self.lng = lng
+        self.date = date
+        self.aqi = aqi
+
+
 
 with open('daily_88101_2015.csv') as csvfile:
     reader = csv.DictReader(csvfile)
