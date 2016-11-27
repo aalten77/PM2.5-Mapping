@@ -6,7 +6,7 @@ from collections import defaultdict
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.sqlite3'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['LOAD_FROM_CSV'] = False
@@ -66,20 +66,15 @@ def load_db_from_csv(file_name: str):
 
 @app.route('/', methods = ['POST', 'GET'])
 def display2016():
-    startdate = datetime.strptime(request.form['startdate'], app.config['DATE_FORMAT'])
-    enddate = datetime.strptime(request.form['enddate'], app.config['DATE_FORMAT'])
-
-    results = Site.query.filter(Site.date >= startdate, Site.date <= enddate).all()
-    print(len(results))
-
-    Sites=[]
-    return render_template('map.html', Sites = Sites[0::10], startdate = startdate, enddate = enddate)
+    startdate = request.form['startdate']
+    enddate = request.form['enddate']
+    return render_template('map.html', startdate=startdate, enddate=enddate)
 
 
 @app.route('/data', methods=['POST'])
 def query_data():
     date = datetime.strptime(request.form['date'], app.config['DATE_FORMAT'])
-    results = Site.query.filter(Site.date == date).all()
+    results = Site.query.filter(Site.date == date, Site.aqi != -1).all()
 
     def transform(element: Site):
         return {
